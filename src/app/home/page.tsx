@@ -97,7 +97,7 @@ export default function HomePage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {videos.map((video: any) => (
                 <div key={video._id} className="bg-gray-800 p-4 rounded-lg">
-                  <video controls className="w-full h-48 object-cover rounded-lg">
+                  <video controls className="w-full h-48 object-conatin rounded-lg">
                     <source src={video.videoUrl} type="video/mp4" />
                   </video>
                   <h3 className="text-white text-lg mt-2">{video.title}</h3>

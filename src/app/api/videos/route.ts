@@ -34,6 +34,7 @@ export async function GET() {
 export async function POST(req: Request) {
     try {
       await connectDB();
+      console.log("Connected to MongoDB");
   
       return new Promise((resolve, reject) => {
         const headers = Object.fromEntries(req.headers.entries());
@@ -43,14 +44,29 @@ export async function POST(req: Request) {
         let uploadPromise: Promise<string> | null = null;
   
         busboy.on("file", (_, file, info) => {
+          console.log("File received:", info);
+  
           uploadPromise = new Promise<string>((resolve, reject) => {
+            console.log("Uploading to Cloudinary...");
+  
             const uploadStream = cloudinary.uploader.upload_stream(
-              { resource_type: "video", folder: "videos" },
+              {
+                resource_type: "video",
+                folder: "videos",
+                format: "mp4",
+                quality: "auto:best",
+                transformation: [
+                  { fetch_format: "mp4" },
+                  { video_codec: "auto" },
+                  { width: "1920", height: "1080", crop: "limit" },
+                ],
+              },
               (error, result) => {
                 if (error) {
                   console.error("Cloudinary Upload Error:", error);
                   return reject(error);
                 }
+                console.log("Cloudinary Upload Successful:", result?.secure_url);
                 resolve(result?.secure_url || "");
               }
             );
@@ -59,21 +75,26 @@ export async function POST(req: Request) {
         });
   
         busboy.on("field", (name, val) => {
+          console.log(`Received field: ${name} = ${val}`);
           if (name === "title") title = val;
         });
   
         busboy.on("finish", async () => {
+          console.log("Busboy finished processing");
+  
           if (!title || !uploadPromise) {
-            return resolve(
-              NextResponse.json({ message: "Title and video file are required" }, { status: 400 })
-            );
+            console.error("Missing title or upload promise");
+            return resolve(NextResponse.json({ message: "Title and video file are required" }, { status: 400 }));
           }
   
           try {
             const cloudinaryUrl = await uploadPromise;
+            console.log("Saving video to MongoDB:", cloudinaryUrl);
+  
             const newVideo = new Video({ title, videoUrl: cloudinaryUrl });
             await newVideo.save();
-            
+            console.log("Video saved successfully!");
+  
             resolve(NextResponse.json({ message: "Video uploaded successfully!", video: newVideo }, { status: 201 }));
           } catch (error) {
             console.error("Error saving video to database:", error);
@@ -87,9 +108,11 @@ export async function POST(req: Request) {
         });
   
         if (req.body) {
+          console.log("Streaming request body...");
           const nodeStream = stream.Readable.from(req.body as any);
           nodeStream.pipe(busboy);
         } else {
+          console.error("Request body is null");
           reject(NextResponse.json({ message: "Request body is null" }, { status: 400 }));
         }
       });
@@ -98,3 +121,4 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Failed to upload video", error: (error as Error).message }, { status: 500 });
     }
   }
+  
